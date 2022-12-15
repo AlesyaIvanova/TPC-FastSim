@@ -1,12 +1,13 @@
 import h5py
-import tensorflow as tf
-from tensorflow.python.keras.saving import hdf5_format
+# import tensorflow as tf
+# from tensorflow.python.keras.saving import hdf5_format
+import numpy as np
+import torch
 
 
 from . import scalers, nn
 
 
-@tf.function(experimental_relax_shapes=True)
 def preprocess_features(features):
     # features:
     #   crossing_angle [-20, 20]
@@ -14,11 +15,10 @@ def preprocess_features(features):
     #   drift_length [35, 290]
     #   pad_coordinate [40-something, 40-something]
     bin_fractions = features[:, 2:4] % 1
-    features = (features[:, :3] - tf.constant([[0.0, 0.0, 162.5]])) / tf.constant([[20.0, 60.0, 127.5]])
-    return tf.concat([features, bin_fractions], axis=-1)
+    features = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
+    return torch.cat((features, bin_fractions), dim=-1)
 
 
-@tf.function(experimental_relax_shapes=True)
 def preprocess_features_v4plus(features):
     # features:
     #   crossing_angle [-20, 20]
@@ -28,26 +28,26 @@ def preprocess_features_v4plus(features):
     #   padrow {23, 33}
     #   pT [0, 2.5]
     bin_fractions = features[:, 2:4] % 1
-    features_1 = (features[:, :3] - tf.constant([[0.0, 0.0, 162.5]])) / tf.constant([[20.0, 60.0, 127.5]])
-    features_2 = tf.cast(features[:, 4:5] >= 27, tf.float32)
+    features_1 = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
+    features_2 = (features[:, 4:5] >= 27).float()
     features_3 = features[:, 5:6] / 2.5
-    return tf.concat([features_1, features_2, features_3, bin_fractions], axis=-1)
+    return torch.cat((features_1, features_2, features_3, bin_fractions), dim=-1)
 
 
 def disc_loss(d_real, d_fake):
-    return tf.reduce_mean(d_fake - d_real)
+    return torch.mean(d_fake - d_real)
 
 
 def gen_loss(d_real, d_fake):
-    return tf.reduce_mean(d_real - d_fake)
+    return torch.mean(d_real - d_fake)
 
 
 def disc_loss_cramer(d_real, d_fake, d_fake_2):
-    return -tf.reduce_mean(
-        tf.norm(d_real - d_fake, axis=-1)
-        + tf.norm(d_fake_2, axis=-1)
-        - tf.norm(d_fake - d_fake_2, axis=-1)
-        - tf.norm(d_real, axis=-1)
+    return -torch.mean(
+        torch.norm(d_real - d_fake, dim=-1)
+        + torch.norm(d_fake_2, dim=-1)
+        - torch.norm(d_fake - d_fake_2, dim=-1)
+        - torch.norm(d_real, dim=-1)
     )
 
 
@@ -56,15 +56,15 @@ def gen_loss_cramer(d_real, d_fake, d_fake_2):
 
 
 def logloss(x):
-    return tf.nn.softplus(-x)
+    return torch.nn.Softplus(-x)
 
 
 def disc_loss_js(d_real, d_fake):
-    return tf.reduce_sum(logloss(d_real)) + tf.reduce_sum(logloss(-d_fake)) / (len(d_real) + len(d_fake))
+    return torch.sum(logloss(d_real)) + torch.sum(logloss(-d_fake)) / (len(d_real) + len(d_fake))
 
 
 def gen_loss_js(d_real, d_fake):
-    return tf.reduce_mean(logloss(d_fake))
+    return torch.mean(logloss(d_fake))
 
 
 class Model_v4:
@@ -76,8 +76,8 @@ class Model_v4:
             if self.full_feature_space:
                 self._f = preprocess_features_v4plus
 
-        self.disc_opt = tf.keras.optimizers.RMSprop(config['lr_disc'])
-        self.gen_opt = tf.keras.optimizers.RMSprop(config['lr_gen'])
+        self.disc_opt = torch.optim.RMSprop(config['lr_disc'])
+        self.gen_opt = torch.optim.RMSprop(config['lr_gen'])
         self.gp_lambda = config['gp_lambda']
         self.gpdata_lambda = config['gpdata_lambda']
         self.num_disc_updates = config['num_disc_updates']
@@ -101,7 +101,7 @@ class Model_v4:
             architecture_descr['discriminator'], custom_objects_code=config.get('custom_objects', None)
         )
 
-        self.step_counter = tf.Variable(0, dtype='int32', trainable=False)
+        self.step_counter = torch.tensor(0, dtype=torch.int)
 
         self.scaler = scalers.get_scaler(config['scaler'])
         self.pad_range = tuple(config['pad_range'])
@@ -133,41 +133,37 @@ class Model_v4:
             features_shape = self.discriminator.inputs[0].shape.as_list()
             targets_shape = self.discriminator.inputs[1].shape.as_list()
             features_shape[0], targets_shape[0] = 1, 1
-            step_fn(tf.zeros(features_shape), tf.zeros(targets_shape))
+            step_fn(torch.zeros(features_shape), torch.zeros(targets_shape))
 
         print(f'Loading {gen_or_disc} weights from {str(checkpoint)}')
         network.load_weights(str(checkpoint))
 
         if 'optimizer_weights' in model_file:
             print('Also recovering the optimizer state')
-            opt_weight_values = hdf5_format.load_optimizer_weights_from_hdf5_group(model_file)
+            opt_weight_values = hdf5_format.load_optimizer_weights_from_hdf5_group(model_file) #????
             network.optimizer.set_weights(opt_weight_values)
 
-    @tf.function
     def make_fake(self, features):
-        size = tf.shape(features)[0]
-        latent_input = tf.random.normal(shape=(size, self.latent_dim), dtype='float32')
-        return self.generator(tf.concat([self._f(features), latent_input], axis=-1))
+        size = features.size(dim=0)
+        latent_input = torch.normal(mean=0, std=1).int()
+        return self.generator(torch.cat((self._f(features), latent_input), dim=-1))
 
     def gradient_penalty(self, features, real, fake):
-        alpha = tf.random.uniform(shape=[len(real)] + [1] * (len(real.shape) - 1))
+        alpha = torch.rand(size=[len(real)] + [1] * (len(real.shape) - 1))
         interpolates = alpha * real + (1 - alpha) * fake
-        with tf.GradientTape() as t:
-            t.watch(interpolates)
-            d_int = self.discriminator([self._f(features), interpolates])
+        
+        d_int = self.discriminator([self._f(features), interpolates])
 
-        grads = tf.reshape(t.gradient(d_int, interpolates), [len(real), -1])
-        return tf.reduce_mean(tf.maximum(tf.norm(grads, axis=-1) - 1, 0) ** 2)
+        grads = torch.reshape(d_int.grad, (len(real), -1))
+        return torch.mean(max(torch.norm(grads, dim=-1) - 1, 0) ** 2)
 
     def gradient_penalty_on_data(self, features, real):
-        with tf.GradientTape() as t:
-            t.watch(real)
-            d_real = self.discriminator([self._f(features), real])
+        d_real = self.discriminator([self._f(features), real])
 
-        grads = tf.reshape(t.gradient(d_real, real), [len(real), -1])
-        return tf.reduce_mean(tf.reduce_sum(grads**2, axis=-1))
+        grads = torch.reshape(d_real.grad, (len(real), -1))
+        return torch.mean(torch.sum(grads**2, dim=-1))
 
-    @tf.function
+
     def calculate_losses(self, feature_batch, target_batch):
         fake = self.make_fake(feature_batch)
         d_real = self.discriminator([self._f(feature_batch), target_batch])
@@ -199,31 +195,31 @@ class Model_v4:
         return {'disc_loss': d_loss, 'gen_loss': g_loss}
 
     def disc_step(self, feature_batch, target_batch):
-        feature_batch = tf.convert_to_tensor(feature_batch)
-        target_batch = tf.convert_to_tensor(target_batch)
+        feature_batch = torch.Tensor(feature_batch)
+        target_batch = torch.Tensor(target_batch)
 
-        with tf.GradientTape() as t:
-            losses = self.calculate_losses(feature_batch, target_batch)
-
-        grads = t.gradient(losses['disc_loss'], self.discriminator.trainable_variables)
-        self.disc_opt.apply_gradients(zip(grads, self.discriminator.trainable_variables))
+        losses = self.calculate_losses(feature_batch, target_batch)
+        
+        self.disc_opt.zero_grad()
+        losses.backward()
+        self.disc_opt.step()
         return losses
 
     def gen_step(self, feature_batch, target_batch):
-        feature_batch = tf.convert_to_tensor(feature_batch)
-        target_batch = tf.convert_to_tensor(target_batch)
+        feature_batch = torch.Tensor(feature_batch)
+        target_batch = torch.Tensor(target_batch)
 
-        with tf.GradientTape() as t:
-            losses = self.calculate_losses(feature_batch, target_batch)
+        losses = self.calculate_losses(feature_batch, target_batch)
 
-        grads = t.gradient(losses['gen_loss'], self.generator.trainable_variables)
-        self.gen_opt.apply_gradients(zip(grads, self.generator.trainable_variables))
+        self.gen_opt.zero_grad()
+        losses.backward()        
+        self.gen_opt.step()
         return losses
 
-    @tf.function
+    
     def training_step(self, feature_batch, target_batch):
         if self.stochastic_stepping:
-            if tf.random.uniform(shape=[], dtype='int32', maxval=self.num_disc_updates + 1) == self.num_disc_updates:
+            if torch.randint(high=self.num_disc_updates + 1, (1,))[0] == self.num_disc_updates:
                 result = self.gen_step(feature_batch, target_batch)
             else:
                 result = self.disc_step(feature_batch, target_batch)
