@@ -1,9 +1,12 @@
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 from tqdm import trange
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 
 def train(
+    model,
     data_train,
     data_val,
     train_step_fn,
@@ -25,7 +28,8 @@ def train(
     for i_epoch in range(first_epoch, num_epochs):
         print("Working on epoch #{}".format(i_epoch), flush=True)
 
-        tf.keras.backend.set_learning_phase(1)  # training
+        model.train()
+        
         shuffle_ids = np.random.permutation(len(data_train))
         losses_train = {}
 
@@ -51,7 +55,7 @@ def train(
                 losses_train[k] = losses_train.get(k, 0) + l.numpy() * len(batch)
         losses_train = {k: l / len(data_train) for k, l in losses_train.items()}
 
-        tf.keras.backend.set_learning_phase(0)  # testing
+        model.eval()
 
         losses_val = {}
         for i_sample in trange(0, len(data_val), batch_size):
@@ -72,12 +76,16 @@ def train(
         if train_writer is not None:
             with train_writer.as_default():
                 for k, l in losses_train.items():
-                    tf.summary.scalar(k, l, i_epoch)
+                    writer = SummaryWriter()
+                    writer.add_scalar(k, l, i_epoch)
+                    writer.close()
 
         if val_writer is not None:
             with val_writer.as_default():
                 for k, l in losses_val.items():
-                    tf.summary.scalar(k, l, i_epoch)
+                    writer = SummaryWriter()
+                    writer.add_scalar(k, l, i_epoch)
+                    writer.close()
 
         print("", flush=True)
         print("Train losses:", losses_train)
@@ -85,11 +93,11 @@ def train(
 
 
 def average(models):
-    parameters = [model.trainable_variables for model in models]
+    parameters = [model.parameters() for model in models]
     assert len(np.unique([len(par) for par in parameters])) == 1, 'average: different models provided'
 
-    result = tf.keras.models.clone_model(models[0])
-    for params in zip(result.trainable_variables, *parameters):
-        params[0].assign(tf.reduce_mean(params[1:], axis=0))
+    result = torch.clone(models[0])
+    for params in zip(result.parameters(), *parameters):
+        params[0].assign(np.mean(params[1:], axis=0))
 
     return result
