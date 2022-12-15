@@ -1,4 +1,6 @@
-import tensorflow as tf
+#import tensorflow as tf
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from metrics import make_images_for_model
 
@@ -25,15 +27,18 @@ class WriteHistSummaryCallback:
 
     def __call__(self, step):
         if step % self.save_period == 0:
-            images, images1, img_amplitude, chi2 = make_images_for_model(self.model, sample=self.sample, calc_chi2=True)
+            images, images1, img_amplitude, chi2 = make_images_for_model(self.model, sample=self.sample, calc_chi2=True)  
+                        
             with self.writer.as_default():
-                tf.summary.scalar("chi2", chi2, step)
+                writer = SummaryWriter()
+                writer.add_scalar("chi2", chi2, step)
 
                 for k, img in images.items():
-                    tf.summary.image(k, img, step)
+                    writer.add_image(k, img, step)
                 for k, img in images1.items():
-                    tf.summary.image("{} (amp > 1)".format(k), img, step)
-                tf.summary.image("log10(amplitude + 1)", img_amplitude, step)
+                    writer.add_image("{} (amp > 1)".format(k), img, step)
+                writer.add_image("log10(amplitude + 1)", img_amplitude, step)
+                writer.close()
 
 
 class ScheduleLRCallback:
@@ -47,8 +52,10 @@ class ScheduleLRCallback:
         self.model.disc_opt.lr.assign(self.func_disc(step))
         self.model.gen_opt.lr.assign(self.func_gen(step))
         with self.writer.as_default():
-            tf.summary.scalar("discriminator learning rate", self.model.disc_opt.lr, step)
-            tf.summary.scalar("generator learning rate", self.model.gen_opt.lr, step)
+            writer = SummaryWriter()
+            writer.add_scalar("discriminator learning rate", self.model.disc_opt.lr, step)
+            writer.add_scalar("generator learning rate", self.model.gen_opt.lr, step)
+            writer.close()
 
 
 def get_scheduler(lr, lr_decay):
