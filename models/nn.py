@@ -7,6 +7,8 @@ import numpy as np  # noqa: F401
 custom_objects = {}
 
 activations = {
+    'null': None,
+    'elu': torch.nn.ELU(),
     'relu': torch.nn.ReLU(),
     'sigmoid': torch.nn.Sigmoid(),
     'tanh': torch.nn.Tanh(),
@@ -23,12 +25,14 @@ def get_activation(activation_name):
 class FullyConnectedBlock(torch.nn.Module):
     
     def __init__(
+        self,
         units, 
         activations, 
         input_shape=None, 
         output_shape=None, 
         dropouts=None, 
-        name=None
+        name=None,
+        kernel_init=None,
     ) -> None:
         super().__init__()
         self.output_shape = output_shape
@@ -39,10 +43,12 @@ class FullyConnectedBlock(torch.nn.Module):
         activations = [get_activation(a) for a in activations]
         self.layers = []
     
+        print(units)
         for i in range(len(units)):
             if i == 0 and input_shape:
-                self.layers.append(torch.nn.Linear(in_features=input_shape, out_features=units[i]))
-            self.layers.append(torch.nn.Linear(in_features=units[i-1], out_features=units[i]))
+                self.layers.append(torch.nn.Linear(in_features=input_shape[0], out_features=units[i]))
+            else:
+                self.layers.append(torch.nn.Linear(in_features=units[i-1], out_features=units[i]))
             
             self.layers.append(activations[i])
     
@@ -52,17 +58,21 @@ class FullyConnectedBlock(torch.nn.Module):
                 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
         x = input_tensor
+        # print('start')
         for layer in self.layers:
+            # print(x.shape)
+            # print(layer)
             x = layer(x)
         
         if self.output_shape:
-            torch.reshape(x, shape=self.output_shape)
+            torch.reshape(x, shape=(-1, *self.output_shape))
         return x
 
 
 class SingleBlock(torch.nn.Module):
     
     def __init__(
+        self,
         input_shape, 
         output_shape, 
         activation=None, 
@@ -90,9 +100,10 @@ class SingleBlock(torch.nn.Module):
         return x
 
 
-class FullyConnectedBlock(torch.nn.Module):
+class FullyConnectedResidualBlock(torch.nn.Module):
     
     def __init__(
+        self,
         units,
         activations,
         input_shape,
@@ -140,6 +151,7 @@ class FullyConnectedBlock(torch.nn.Module):
 class ConcatBlock(torch.nn.Module):
     
     def __init__(
+        self,
         input1_shape, 
         input2_shape, 
         reshape_input1=None, 
@@ -148,8 +160,8 @@ class ConcatBlock(torch.nn.Module):
         name=None
     ) -> None:
         super().__init__()
-        selp.input1_shape = input1_shape
-        selp.input1_shape = input1_shape
+        self.input1_shape = input1_shape
+        self.input1_shape = input1_shape
         self.reshape_input1 = reshape_input1
         self.reshape_input2 = reshape_input2
         self.dim = dim
@@ -168,14 +180,15 @@ class ConcatBlock(torch.nn.Module):
 class ConvBlock(torch.nn.Module):
 
     def __init__(
+        self,
         filters,
         kernel_sizes,
         paddings,
         activations,
         poolings,
-        kernel_init='glorot_uniform',
-        input_shape=None,
+        input_shape,
         output_shape=None,
+        kernel_init='glorot_uniform',
         dropouts=None,
         name=None,
     ) -> None:
@@ -187,9 +200,10 @@ class ConvBlock(torch.nn.Module):
         activations = [get_activation(a) for a in activations]
         self.layers = []
         
+        print(input_shape, filters)
         for i, (nfilt, ksize, padding, act, pool) in enumerate(zip(filters, kernel_sizes, paddings, activations, poolings)):
-            self.layers.append(torch.nn.Conv2D(
-                in_channels=(input_shape if (i == 0 and input_shape) else nfilters[i-1]),
+            self.layers.append(torch.nn.Conv2d(
+                in_channels=(input_shape if i == 0 else filters[i-1]),
                 out_channels=nfilt,
                 kernel_size=ksize,
                 padding=padding,
@@ -201,22 +215,25 @@ class ConvBlock(torch.nn.Module):
                 self.layers.append(torch.nn.Dropout(p=dropouts[i]))
     
             if pool:
-                self.layers.append(torch.nn.MaxPool2D(kernel_size=pool))
+                self.layers.append(torch.nn.MaxPool2d(kernel_size=pool))
                 
                 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor: 
         x = input_tensor
         for layer in self.layers:
+            print('a', x.shape)
+            print('a', layer)
             x = layer(x)
             
-        if output_shape:
-            torch.reshape(x, output_shape)
+        if self.output_shape:
+            torch.reshape(x, self.output_shape)
         return x
 
 
 class VectorImgConnectBlock(torch.nn.Module):
     
     def __init__(
+        self,
         vector_shape, 
         img_shape, 
         block, 
@@ -228,49 +245,54 @@ class VectorImgConnectBlock(torch.nn.Module):
         self.vector_shape = tuple(vector_shape)
         self.img_shape = tuple(img_shape)
         self.block = block
-    
+        self.vector_bypass = vector_bypass
+        self.concat_outputs = concat_outputs
+
         assert len(vector_shape) == 1
         assert 2 <= len(img_shape) <= 3
     
     
-    def forward(self, input_vec: torch.Tensor, input_img: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensors) -> torch.Tensor:
+        input_vec, input_img = input_tensors[0], input_tensors[1]
         block_input = input_img
         if len(self.img_shape) == 2:
-            block_input = torch.reshape(block_input, img_shape + (1,))
-        if not vector_bypass:
-            reshaped_vec = torch.tile(torch.reshape(input_vec, (1, 1) + vector_shape), dims=(1, *img_shape[:2], 1))
+            block_input = torch.reshape(block_input, (-1, *(self.img_shape + (1,))))
+        if not self.vector_bypass:
+            reshaped_vec = torch.tile(torch.reshape(input_vec, (-1, *((1, 1) + self.vector_shape))), dims=(1, *self.img_shape[:2], 1))
             block_input = torch.cat((block_input, reshaped_vec), dim=-1)
-    
+
+        print('block', self.block)
         block_output = self.block(block_input)
     
         outputs = [input_vec, block_output]
-        if concat_outputs:
+        if self.concat_outputs:
             outputs = torch.cat(outputs, dim=-1)
         return outputs
 
 
 def build_block(block_type, arguments):
     if block_type == 'fully_connected':
-        block = fully_connected_block(**arguments)
+        block = FullyConnectedBlock(**arguments)
     elif block_type == 'conv':
-        block = conv_block(**arguments)
+        block = ConvBlock(**arguments)
     elif block_type == 'connect':
         inner_block = build_block(**arguments['block'])
         arguments['block'] = inner_block
-        block = vector_img_connect_block(**arguments)
+        block = VectorImgConnectBlock(**arguments)
     elif block_type == 'concat':
-        block = concat_block(**arguments)
+        block = ConcatBlock(**arguments)
     elif block_type == 'fully_connected_residual':
-        block = fully_connected_residual_block(**arguments)
+        block = FullyConnectedResidualBlock(**arguments)
     else:
         raise (NotImplementedError(block_type))
 
     return block
 
 
-class FullModel(nn.Module):
+class FullModel(torch.nn.Module):
     
     def __init__(
+        self,
         block_descriptions,
         name=None, 
         custom_objects_code=None,
@@ -284,8 +306,12 @@ class FullModel(nn.Module):
         self.blocks = [build_block(**descr) for descr in block_descriptions]
     
     
-    def forward(self, inputs: List[torch.Tensor]) -> torch.Tensor:
+    def forward(self, inputs) -> torch.Tensor:
         outputs = inputs
-        for block in blocks:
+        for block in self.blocks:
+            print(len(outputs))
+            for output in outputs:
+              print(output.shape)
+            print(block)
             outputs = block(outputs)
         return outputs

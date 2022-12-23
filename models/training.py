@@ -28,7 +28,7 @@ def train(
     for i_epoch in range(first_epoch, num_epochs):
         print("Working on epoch #{}".format(i_epoch), flush=True)
 
-        model.train()
+        # model.train()
         
         shuffle_ids = np.random.permutation(len(data_train))
         losses_train = {}
@@ -55,7 +55,7 @@ def train(
                 losses_train[k] = losses_train.get(k, 0) + l.numpy() * len(batch)
         losses_train = {k: l / len(data_train) for k, l in losses_train.items()}
 
-        model.eval()
+        # model.eval()
 
         losses_val = {}
         for i_sample in trange(0, len(data_val), batch_size):

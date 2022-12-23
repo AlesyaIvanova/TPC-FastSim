@@ -29,22 +29,7 @@ architecture:
           arguments:
             units: [32, 64, 64, 64, 128]
             activations: [
-                'elu', 'elu', 'elu', 'elu',
-                " (
-                    lambda x,
-                           shift=0.01,
-                           val=np.log10(2),
-                           v0=np.log10(2) / 10: (
-                        tf.where(
-                            x > shift,
-                            val + x - shift,
-                            v0 + tf.keras.activations.elu(
-                                x,
-                                alpha=(v0 * shift / (val - v0))
-                            ) * (val - v0) / shift
-                        )
-                    )
-                )"
+                'elu', 'elu', 'elu', 'elu', 'elu',
             ]
             kernel_init: 'glorot_uniform'
             input_shape: [39,]
@@ -68,14 +53,14 @@ architecture:
                 activations: ['elu', 'elu', 'elu', 'elu', 'elu', 'elu']
                 poolings: [NULL, [1, 2], NULL, 2, NULL, NULL]
                 kernel_init: glorot_uniform
-                input_shape: NULL
+                input_shape: 8
                 output_shape: [64,]
                 dropouts: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02]
                 name: discriminator_conv_block
         - block_type: 'fully_connected'
           arguments:
             units: [128, 1]
-            activations: ['elu', NULL]
+            activations: ['elu', 'elu']
             kernel_init: 'glorot_uniform'
             input_shape: [71,]
             output_shape: NULL

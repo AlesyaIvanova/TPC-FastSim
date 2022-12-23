@@ -144,6 +144,7 @@ def main():
             schedule_lr(next_epoch - 1)
 
         train(
+            model,
             Y_train,
             Y_test,
             model.training_step,

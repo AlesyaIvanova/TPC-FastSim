@@ -76,8 +76,8 @@ class Model_v4:
             if self.full_feature_space:
                 self._f = preprocess_features_v4plus
 
-        self.disc_opt = torch.optim.RMSprop(config['lr_disc'])
-        self.gen_opt = torch.optim.RMSprop(config['lr_gen'])
+        # self.disc_opt = torch.optim.RMSprop(lr=config['lr_disc'])
+        # self.gen_opt = torch.optim.RMSprop(config['lr_gen'])
         self.gp_lambda = config['gp_lambda']
         self.gpdata_lambda = config['gpdata_lambda']
         self.num_disc_updates = config['num_disc_updates']
@@ -94,10 +94,11 @@ class Model_v4:
         self.latent_dim = config['latent_dim']
 
         architecture_descr = config['architecture']
-        self.generator = nn.build_architecture(
+
+        self.generator = nn.FullModel(
             architecture_descr['generator'], custom_objects_code=config.get('custom_objects', None)
         )
-        self.discriminator = nn.build_architecture(
+        self.discriminator = nn.FullModel(
             architecture_descr['discriminator'], custom_objects_code=config.get('custom_objects', None)
         )
 
@@ -108,8 +109,8 @@ class Model_v4:
         self.time_range = tuple(config['time_range'])
         self.data_version = config['data_version']
 
-        self.generator.compile(optimizer=self.gen_opt, loss='mean_squared_error')
-        self.discriminator.compile(optimizer=self.disc_opt, loss='mean_squared_error')
+        # self.generator.compile(optimizer=self.gen_opt, loss='mean_squared_error')
+        # self.discriminator.compile(optimizer=self.disc_opt, loss='mean_squared_error')
 
     def load_generator(self, checkpoint):
         self._load_weights(checkpoint, 'gen')
@@ -145,7 +146,7 @@ class Model_v4:
 
     def make_fake(self, features):
         size = features.size(dim=0)
-        latent_input = torch.normal(mean=0, std=1).int()
+        latent_input = torch.normal(mean=0, std=1, size=(size, self.latent_dim))
         return self.generator(torch.cat((self._f(features), latent_input), dim=-1))
 
     def gradient_penalty(self, features, real, fake):
@@ -219,7 +220,7 @@ class Model_v4:
     
     def training_step(self, feature_batch, target_batch):
         if self.stochastic_stepping:
-            if torch.randint(high=self.num_disc_updates + 1, (1,))[0] == self.num_disc_updates:
+            if torch.randint(high=self.num_disc_updates + 1, size=(1,))[0] == self.num_disc_updates:
                 result = self.gen_step(feature_batch, target_batch)
             else:
                 result = self.disc_step(feature_batch, target_batch)
