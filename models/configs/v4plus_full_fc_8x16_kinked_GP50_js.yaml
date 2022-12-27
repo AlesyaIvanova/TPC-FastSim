@@ -54,7 +54,7 @@ architecture:
                 poolings: [NULL, [1, 2], NULL, 2, NULL, NULL]
                 kernel_init: glorot_uniform
                 input_shape: 8
-                output_shape: [64,]
+                output_shape: 64
                 dropouts: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02]
                 name: discriminator_conv_block
         - block_type: 'fully_connected'

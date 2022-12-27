@@ -3,6 +3,7 @@ import h5py
 # from tensorflow.python.keras.saving import hdf5_format
 import numpy as np
 import torch
+from torch.autograd import Variable
 
 
 from . import scalers, nn
@@ -56,10 +57,12 @@ def gen_loss_cramer(d_real, d_fake, d_fake_2):
 
 
 def logloss(x):
-    return torch.nn.Softplus(-x)
+    sp = torch.nn.Softplus()
+    return sp(-x)
 
 
 def disc_loss_js(d_real, d_fake):
+    print('j', d_real.shape, d_fake.shape)
     return torch.sum(logloss(d_real)) + torch.sum(logloss(-d_fake)) / (len(d_real) + len(d_fake))
 
 
@@ -151,10 +154,14 @@ class Model_v4:
 
     def gradient_penalty(self, features, real, fake):
         alpha = torch.rand(size=[len(real)] + [1] * (len(real.shape) - 1))
+        print('e', real.shape, fake.shape)
+        fake = torch.reshape(fake, real.shape)
         interpolates = alpha * real + (1 - alpha) * fake
         
-        d_int = self.discriminator([self._f(features), interpolates])
-
+        inputs = [Variable(self._f(features), requires_grad=True), Variable(interpolates, requires_grad=True)]
+        d_int = self.discriminator(inputs)
+        print('k', d_int.shape)
+        print('kk', d_int.grad)
         grads = torch.reshape(d_int.grad, (len(real), -1))
         return torch.mean(max(torch.norm(grads, dim=-1) - 1, 0) ** 2)
 
@@ -199,6 +206,7 @@ class Model_v4:
         feature_batch = torch.Tensor(feature_batch)
         target_batch = torch.Tensor(target_batch)
 
+        print('u', feature_batch.shape, target_batch.shape)
         losses = self.calculate_losses(feature_batch, target_batch)
         
         self.disc_opt.zero_grad()

@@ -1,5 +1,6 @@
 # import tensorflow as tf
 import torch
+from torch.autograd import Variable
 
 # DO NOT REMOVE. used by code inside eval()
 import numpy as np  # noqa: F401
@@ -56,7 +57,7 @@ class FullyConnectedBlock(torch.nn.Module):
                 self.layers.append(torch.nn.Dropout(p=dropouts[i]))
          
                 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor) -> Variable:
         x = input_tensor
         # print('start')
         for layer in self.layers:
@@ -90,7 +91,7 @@ class SingleBlock(torch.nn.Module):
             self.dropout_layer = torch.nn.Dropout(p=dropout)
             
     
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor) -> Variable:
         x = self.linear(input_tensor)
         if self.batchnorm:
             x = self.batchnorm_layer(x)
@@ -134,7 +135,7 @@ class FullyConnectedResidualBlock(torch.nn.Module):
             ))
 
 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor: 
+    def forward(self, input_tensor) -> Variable: 
         x = input_tensor
         for i, single_block in enumerate(self.blocks):
             if len(x.shape) == 2 and x.shape[1] == units:
@@ -167,7 +168,7 @@ class ConcatBlock(torch.nn.Module):
         self.dim = dim
         
         
-    def forward(self, in1: torch.Tensor, in2: torch.Tensor) -> torch.Tensor:
+    def forward(self, in1, in2) -> Variable:
         concat1, concat2 = in1, in2
         if self.reshape_input1:
             concat1 = torch.reshape(concat1, self.reshape_input1)
@@ -196,7 +197,8 @@ class ConvBlock(torch.nn.Module):
         assert len(filters) == len(kernel_sizes) == len(paddings) == len(activations) == len(poolings)
         if dropouts:
             assert len(dropouts) == len(filters)
-    
+
+        self.output_shape = output_shape
         activations = [get_activation(a) for a in activations]
         self.layers = []
         
@@ -218,7 +220,7 @@ class ConvBlock(torch.nn.Module):
                 self.layers.append(torch.nn.MaxPool2d(kernel_size=pool))
                 
                 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor: 
+    def forward(self, input_tensor) -> Variable: 
         x = input_tensor
         for layer in self.layers:
             print('a', x.shape)
@@ -226,7 +228,7 @@ class ConvBlock(torch.nn.Module):
             x = layer(x)
             
         if self.output_shape:
-            torch.reshape(x, self.output_shape)
+            x = torch.reshape(x, (-1, self.output_shape))
         return x
 
 
@@ -252,7 +254,7 @@ class VectorImgConnectBlock(torch.nn.Module):
         assert 2 <= len(img_shape) <= 3
     
     
-    def forward(self, input_tensors) -> torch.Tensor:
+    def forward(self, input_tensors) -> Variable:
         input_vec, input_img = input_tensors[0], input_tensors[1]
         block_input = input_img
         if len(self.img_shape) == 2:
@@ -262,9 +264,12 @@ class VectorImgConnectBlock(torch.nn.Module):
             block_input = torch.cat((block_input, reshaped_vec), dim=-1)
 
         print('block', self.block)
+        block_input = torch.permute(block_input, (0, 3, 1, 2))
+        print('n', block_input.shape)
         block_output = self.block(block_input)
     
         outputs = [input_vec, block_output]
+        print('d', input_vec.shape, block_output.shape)
         if self.concat_outputs:
             outputs = torch.cat(outputs, dim=-1)
         return outputs
@@ -306,12 +311,12 @@ class FullModel(torch.nn.Module):
         self.blocks = [build_block(**descr) for descr in block_descriptions]
     
     
-    def forward(self, inputs) -> torch.Tensor:
+    def forward(self, inputs) -> Variable:
         outputs = inputs
         for block in self.blocks:
-            print(len(outputs))
+            print('q', len(outputs))
             for output in outputs:
-              print(output.shape)
-            print(block)
+              print('qq', output.shape)
+            print('qqq', block)
             outputs = block(outputs)
         return outputs

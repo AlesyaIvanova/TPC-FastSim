@@ -39,6 +39,7 @@ def train(
 
         for i_sample in trange(0, len(data_train), batch_size):
             batch = data_train[shuffle_ids][i_sample : i_sample + batch_size]
+            print('w', batch.shape)
             if features_train is not None:
                 feature_batch = features_train[shuffle_ids][i_sample : i_sample + batch_size]
                 if noise_power is not None:
@@ -50,6 +51,7 @@ def train(
             if features_train is None:
                 losses_train_batch = train_step_fn(batch)
             else:
+                print('t', feature_batch.shape, batch.shape)
                 losses_train_batch = train_step_fn(feature_batch, batch)
             for k, l in losses_train_batch.items():
                 losses_train[k] = losses_train.get(k, 0) + l.numpy() * len(batch)
