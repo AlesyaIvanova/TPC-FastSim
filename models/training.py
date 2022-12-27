@@ -54,7 +54,8 @@ def train(
                 print('t', feature_batch.shape, batch.shape)
                 losses_train_batch = train_step_fn(feature_batch, batch)
             for k, l in losses_train_batch.items():
-                losses_train[k] = losses_train.get(k, 0) + l.numpy() * len(batch)
+                print('l', l.item())
+                losses_train[k] = losses_train.get(k, 0) + l.item() * len(batch)
         losses_train = {k: l / len(data_train) for k, l in losses_train.items()}
 
         # model.eval()

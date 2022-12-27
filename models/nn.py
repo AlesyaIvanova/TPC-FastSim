@@ -319,4 +319,5 @@ class FullModel(torch.nn.Module):
               print('qq', output.shape)
             print('qqq', block)
             outputs = block(outputs)
+            print('aaaa', outputs.grad)
         return outputs
