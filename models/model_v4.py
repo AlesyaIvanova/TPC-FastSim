@@ -28,10 +28,10 @@ def preprocess_features_v4plus(features):
     #   pad_coordinate [40-something, 40-something]
     #   padrow {23, 33}
     #   pT [0, 2.5]
-    bin_fractions = features[:, 2:4] % 1
-    features_1 = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
-    features_2 = (features[:, 4:5] >= 27).float()
-    features_3 = features[:, 5:6] / 2.5
+    bin_fractions = torch.tensor(features[:, 2:4] % 1)
+    features_1 = (torch.tensor(features[:, :3]) - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
+    features_2 = torch.tensor((features[:, 4:5] >= 27), dtype=torch.float)
+    features_3 = torch.tensor(features[:, 5:6] / 2.5)
     return torch.cat((features_1, features_2, features_3, bin_fractions), dim=-1)
 
 
@@ -62,7 +62,7 @@ def logloss(x):
 
 
 def disc_loss_js(d_real, d_fake):
-    print('j', d_real.shape, d_fake.shape)
+    # print('j', d_real.shape, d_fake.shape)
     return torch.sum(logloss(d_real)) + torch.sum(logloss(-d_fake)) / (len(d_real) + len(d_fake))
 
 
@@ -148,22 +148,23 @@ class Model_v4:
             network.optimizer.set_weights(opt_weight_values)
 
     def make_fake(self, features):
-        size = features.size(dim=0)
+        # print('i', type(features))
+        size = features.shape[0]
         latent_input = torch.normal(mean=0, std=1, size=(size, self.latent_dim))
         return self.generator(torch.cat((self._f(features), latent_input), dim=-1))
 
     def gradient_penalty(self, features, real, fake):
         alpha = torch.rand(size=[len(real)] + [1] * (len(real.shape) - 1))
-        print('e', real.shape, fake.shape)
+        # print('e', real.shape, fake.shape)
         fake = torch.reshape(fake, real.shape)
         interpolates = alpha * real + (1 - alpha) * fake
         
         inputs = [Variable(self._f(features), requires_grad=True), Variable(interpolates, requires_grad=True)]
         d_int = self.discriminator(inputs)
-        print(type(d_int), type(inputs[0]))
-        print('k', d_int.shape)
-        print('kk', d_int.grad)
-        print(d_int.shape, interpolates.shape)
+        # print(type(d_int), type(inputs[0]))
+        # print('k', d_int.shape)
+        # print('kk', d_int.grad)
+        # print(d_int.shape, interpolates.shape)
         # grads = torch.gradient(d_int)
         grads = torch.reshape(interpolates.grad, (len(real), -1))
         return torch.mean(max(torch.norm(grads, dim=-1) - 1, 0) ** 2)
@@ -209,7 +210,7 @@ class Model_v4:
         feature_batch = torch.Tensor(feature_batch)
         target_batch = torch.Tensor(target_batch)
 
-        print('u', feature_batch.shape, target_batch.shape)
+        # print('u', feature_batch.shape, target_batch.shape)
         losses = self.calculate_losses(feature_batch, target_batch)
         
         # self.disc_opt.zero_grad()

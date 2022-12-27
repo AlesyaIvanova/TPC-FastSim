@@ -202,7 +202,7 @@ class ConvBlock(torch.nn.Module):
         activations = [get_activation(a) for a in activations]
         self.layers = []
         
-        print(input_shape, filters)
+        # print(input_shape, filters)
         for i, (nfilt, ksize, padding, act, pool) in enumerate(zip(filters, kernel_sizes, paddings, activations, poolings)):
             self.layers.append(torch.nn.Conv2d(
                 in_channels=(input_shape if i == 0 else filters[i-1]),
@@ -223,8 +223,8 @@ class ConvBlock(torch.nn.Module):
     def forward(self, input_tensor) -> Variable: 
         x = input_tensor
         for layer in self.layers:
-            print('a', x.shape)
-            print('a', layer)
+            # print('a', x.shape)
+            # print('a', layer)
             x = layer(x)
             
         if self.output_shape:
@@ -263,13 +263,13 @@ class VectorImgConnectBlock(torch.nn.Module):
             reshaped_vec = torch.tile(torch.reshape(input_vec, (-1, *((1, 1) + self.vector_shape))), dims=(1, *self.img_shape[:2], 1))
             block_input = torch.cat((block_input, reshaped_vec), dim=-1)
 
-        print('block', self.block)
+        # print('block', self.block)
         block_input = torch.permute(block_input, (0, 3, 1, 2))
-        print('n', block_input.shape)
+        # print('n', block_input.shape)
         block_output = self.block(block_input)
     
         outputs = [input_vec, block_output]
-        print('d', input_vec.shape, block_output.shape)
+        # print('d', input_vec.shape, block_output.shape)
         if self.concat_outputs:
             outputs = torch.cat(outputs, dim=-1)
         return outputs
@@ -314,10 +314,10 @@ class FullModel(torch.nn.Module):
     def forward(self, inputs) -> Variable:
         outputs = inputs
         for block in self.blocks:
-            print('q', len(outputs))
-            for output in outputs:
-              print('qq', output.shape)
-            print('qqq', block)
+            # print('q', len(outputs))
+            # for output in outputs:
+              # print('qq', output.shape)
+            # print('qqq', block)
             outputs = block(outputs)
-            print('aaaa', outputs.grad)
+            # print('aaaa', outputs.grad)
         return outputs

@@ -14,8 +14,8 @@ class SaveModelCallback:
     def __call__(self, step):
         if step % self.save_period == 0:
             print(f'Saving model on step {step} to {self.path}')
-            self.model.generator.save(str(self.path.joinpath("generator_{:05d}.h5".format(step))))
-            self.model.discriminator.save(str(self.path.joinpath("discriminator_{:05d}.h5".format(step))))
+            # self.model.generator.save(str(self.path.joinpath("generator_{:05d}.h5".format(step))))
+            # self.model.discriminator.save(str(self.path.joinpath("discriminator_{:05d}.h5".format(step))))
 
 
 class WriteHistSummaryCallback:
@@ -26,19 +26,20 @@ class WriteHistSummaryCallback:
         self.writer = writer
 
     def __call__(self, step):
-        if step % self.save_period == 0:
-            images, images1, img_amplitude, chi2 = make_images_for_model(self.model, sample=self.sample, calc_chi2=True)  
+        pass
+        # if step % self.save_period == 0:
+        #     images, images1, img_amplitude, chi2 = make_images_for_model(self.model, sample=self.sample, calc_chi2=True)  
                         
-            with self.writer.as_default():
-                writer = SummaryWriter()
-                writer.add_scalar("chi2", chi2, step)
+        #     with self.writer.as_default():
+        #         writer = SummaryWriter()
+        #         writer.add_scalar("chi2", chi2, step)
 
-                for k, img in images.items():
-                    writer.add_image(k, img, step)
-                for k, img in images1.items():
-                    writer.add_image("{} (amp > 1)".format(k), img, step)
-                writer.add_image("log10(amplitude + 1)", img_amplitude, step)
-                writer.close()
+        #         for k, img in images.items():
+        #             writer.add_image(k, img, step)
+        #         for k, img in images1.items():
+        #             writer.add_image("{} (amp > 1)".format(k), img, step)
+        #         writer.add_image("log10(amplitude + 1)", img_amplitude, step)
+        #         writer.close()
 
 
 class ScheduleLRCallback:
@@ -49,12 +50,12 @@ class ScheduleLRCallback:
         self.writer = writer
 
     def __call__(self, step):
-        self.model.disc_opt.lr.assign(self.func_disc(step))
-        self.model.gen_opt.lr.assign(self.func_gen(step))
+        # self.model.disc_opt.lr.assign(self.func_disc(step))
+        # self.model.gen_opt.lr.assign(self.func_gen(step))
         with self.writer.as_default():
             writer = SummaryWriter()
-            writer.add_scalar("discriminator learning rate", self.model.disc_opt.lr, step)
-            writer.add_scalar("generator learning rate", self.model.gen_opt.lr, step)
+            # writer.add_scalar("discriminator learning rate", self.model.disc_opt.lr, step)
+            # writer.add_scalar("generator learning rate", self.model.gen_opt.lr, step)
             writer.close()
 
 
