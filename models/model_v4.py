@@ -28,6 +28,8 @@ def preprocess_features_v4plus(features):
     #   pad_coordinate [40-something, 40-something]
     #   padrow {23, 33}
     #   pT [0, 2.5]
+
+    # print(features)
     bin_fractions = torch.tensor(features[:, 2:4] % 1)
     features_1 = (torch.tensor(features[:, :3]) - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
     features_2 = torch.tensor((features[:, 4:5] >= 27), dtype=torch.float)
@@ -149,8 +151,12 @@ class Model_v4:
 
     def make_fake(self, features):
         # print('i', type(features))
-        size = features.shape[0]
+        size = len(features)
         latent_input = torch.normal(mean=0, std=1, size=(size, self.latent_dim))
+        # print(features)
+        # print(self._f(features))
+        # print(torch.cat((self._f(features), latent_input), dim=-1))
+        # print(self.generator(torch.cat((self._f(features), latent_input), dim=-1)))
         return self.generator(torch.cat((self._f(features), latent_input), dim=-1))
 
     def gradient_penalty(self, features, real, fake):

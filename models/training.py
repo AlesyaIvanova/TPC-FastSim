@@ -25,6 +25,11 @@ def train(
         assert features_train is not None, 'train: features should be provided for both train and val'
         assert features_val is not None, 'train: features should be provided for both train and val'
 
+    train_gen_losses = []
+    train_disc_losses = []
+    val_gen_losses = []
+    val_disc_losses = []
+
     for i_epoch in range(first_epoch, num_epochs):
         print("Working on epoch #{}".format(i_epoch), flush=True)
 
@@ -57,6 +62,8 @@ def train(
                 # print('l', l.item())
                 losses_train[k] = losses_train.get(k, 0) + l.item() * len(batch)
         losses_train = {k: l / len(data_train) for k, l in losses_train.items()}
+        train_gen_losses.append(losses_train['gen_loss'])
+        train_disc_losses.append(losses_train['disc_loss'])
 
         # model.eval()
 
@@ -72,6 +79,8 @@ def train(
             for k, l in losses_val_batch.items():
                 losses_val[k] = losses_val.get(k, 0) + l * len(batch)
         losses_val = {k: l / len(data_val) for k, l in losses_val.items()}
+        val_gen_losses.append(losses_val['gen_loss'])
+        val_disc_losses.append(losses_val['disc_loss'])
 
         for f in callbacks:
             f(i_epoch)
@@ -93,6 +102,8 @@ def train(
         print("", flush=True)
         print("Train losses:", losses_train)
         print("Val losses:", losses_val)
+
+    np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
 
 
 def average(models):

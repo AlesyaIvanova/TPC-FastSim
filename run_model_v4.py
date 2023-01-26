@@ -13,6 +13,10 @@ from models.callbacks import SaveModelCallback, WriteHistSummaryCallback, Schedu
 from models.model_v4 import Model_v4
 from metrics import evaluate_model
 import cuda_gpu_config
+import matplotlib.pyplot as plt
+import torch
+import numpy as np
+
 
 
 def make_parser():
@@ -159,6 +163,21 @@ def main():
             features_noise=features_noise,
             first_epoch=next_epoch,
         )
+
+    pad_range = (-3, 5)
+    time_range = (-7, 9)
+    num_samples = 1
+    # fake = model.make_fake(torch.tensor([[0] * 6 for i in range(num_samples)]).detach())
+    # print(X_test[0:1])
+    fake = model.make_fake(X_train[0:1])
+    # plt.figure(figsize=(17, 5))
+    for i in range(num_samples):
+    #   plt.subplot(2, 5, i + 1)
+      # print(fake[i,::1].detach().numpy().reshape((8, 16)))
+      np.savetxt('sample' + str(i), fake[i,::1].detach().numpy().reshape((8, 16)))
+    #   plt.imshow(fake[i,::1].detach().numpy().reshape((8, 16)))
+    #   plt.title('generated')
+    # plt.show()
 
 
 if __name__ == '__main__':
