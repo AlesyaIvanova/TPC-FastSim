@@ -139,7 +139,8 @@ class Model_v4:
             features_shape = self.discriminator.inputs[0].shape.as_list()
             targets_shape = self.discriminator.inputs[1].shape.as_list()
             features_shape[0], targets_shape[0] = 1, 1
-            step_fn(torch.zeros(features_shape), torch.zeros(targets_shape))
+            step_fn(torch.ones(features_shape), torch.ones(targets_shape))
+            # step_fn(torch.zeros(features_shape), torch.zeros(targets_shape))
 
         print(f'Loading {gen_or_disc} weights from {str(checkpoint)}')
         network.load_weights(str(checkpoint))

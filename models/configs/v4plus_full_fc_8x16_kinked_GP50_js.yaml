@@ -11,7 +11,7 @@ js: True
 stochastic_stepping: True
 
 save_every: 50
-num_epochs: 100
+num_epochs: 10
 
 feature_noise_power: NULL
 feature_noise_decay: NULL
