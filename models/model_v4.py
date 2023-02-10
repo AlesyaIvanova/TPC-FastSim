@@ -4,6 +4,8 @@ import h5py
 import numpy as np
 import torch
 from torch.autograd import Variable
+from torch import autograd
+from torchsummary import summary
 
 
 from . import scalers, nn
@@ -81,8 +83,6 @@ class Model_v4:
             if self.full_feature_space:
                 self._f = preprocess_features_v4plus
 
-        # self.disc_opt = torch.optim.RMSprop(lr=config['lr_disc'])
-        # self.gen_opt = torch.optim.RMSprop(config['lr_gen'])
         self.gp_lambda = config['gp_lambda']
         self.gpdata_lambda = config['gpdata_lambda']
         self.num_disc_updates = config['num_disc_updates']
@@ -106,6 +106,9 @@ class Model_v4:
         self.discriminator = nn.FullModel(
             architecture_descr['discriminator'], custom_objects_code=config.get('custom_objects', None)
         )
+
+        self.disc_opt = torch.optim.RMSprop(self.discriminator.parameters(), lr=config['lr_disc'])
+        self.gen_opt = torch.optim.RMSprop(self.generator.parameters(), lr=config['lr_gen'])
 
         self.step_counter = torch.tensor(0, dtype=torch.int)
 
@@ -173,8 +176,11 @@ class Model_v4:
         # print('kk', d_int.grad)
         # print(d_int.shape, interpolates.shape)
         # grads = torch.gradient(d_int)
-        grads = torch.reshape(interpolates.grad, (len(real), -1))
-        return torch.mean(max(torch.norm(grads, dim=-1) - 1, 0) ** 2)
+        grads = autograd.grad(outputs=d_int, inputs=inputs,
+                               grad_outputs=torch.ones(
+                                   d_int.size()),
+                               create_graph=True, retain_graph=True)[0]
+        return torch.mean(torch.maximum(torch.norm(grads, dim=-1) - 1, torch.Tensor([0])) ** 2) 
 
     def gradient_penalty_on_data(self, features, real):
         d_real = self.discriminator([self._f(features), real])
@@ -200,9 +206,9 @@ class Model_v4:
             d_loss = disc_loss_cramer(d_real, d_fake, d_fake_2)
 
         if self.gp_lambda > 0:
-            d_loss = d_loss # + self.gradient_penalty(feature_batch, target_batch, fake) * self.gp_lambda
+            d_loss = d_loss + self.gradient_penalty(feature_batch, target_batch, fake) * self.gp_lambda
         if self.gpdata_lambda > 0:
-            d_loss = d_loss # + self.gradient_penalty_on_data(feature_batch, target_batch) * self.gpdata_lambda
+            d_loss = d_loss + self.gradient_penalty_on_data(feature_batch, target_batch) * self.gpdata_lambda
         if not self.cramer:
             if self.js:
                 g_loss = gen_loss_js(d_real, d_fake)
@@ -217,25 +223,33 @@ class Model_v4:
         feature_batch = torch.Tensor(feature_batch)
         target_batch = torch.Tensor(target_batch)
 
+        for p in self.discriminator.parameters():
+                p.requires_grad = True
+
+        self.discriminator.zero_grad()
         # print('u', feature_batch.shape, target_batch.shape)
         losses = self.calculate_losses(feature_batch, target_batch)
         
         # self.disc_opt.zero_grad()
         losses['disc_loss'].backward()
         # losses['gen_loss'].backward()  
-        # self.disc_opt.step()
+        self.disc_opt.step()
         return losses
 
     def gen_step(self, feature_batch, target_batch):
         feature_batch = torch.Tensor(feature_batch)
         target_batch = torch.Tensor(target_batch)
 
+        for p in self.discriminator.parameters():
+                p.requires_grad = False
+
+        self.generator.zero_grad()
         losses = self.calculate_losses(feature_batch, target_batch)
 
         # self.gen_opt.zero_grad()
         # losses['disc_loss'].backward()
         losses['gen_loss'].backward()        
-        # self.gen_opt.step()
+        self.gen_opt.step()
         return losses
 
     

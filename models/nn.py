@@ -8,7 +8,7 @@ import numpy as np  # noqa: F401
 custom_objects = {}
 
 activations = {
-    'null': None,
+    'NULL': None,
     'elu': torch.nn.ELU(),
     'relu': torch.nn.ReLU(),
     'sigmoid': torch.nn.Sigmoid(),
@@ -42,7 +42,7 @@ class FullyConnectedBlock(torch.nn.Module):
             assert len(dropouts) == len(units)
     
         activations = [get_activation(a) for a in activations]
-        self.layers = []
+        self.layers = torch.nn.ParameterList()
     
         print(units)
         for i in range(len(units)):
@@ -51,7 +51,8 @@ class FullyConnectedBlock(torch.nn.Module):
             else:
                 self.layers.append(torch.nn.Linear(in_features=units[i-1], out_features=units[i]))
             
-            self.layers.append(activations[i])
+            if activations[i] is not None:
+                self.layers.append(activations[i])
     
             if dropouts and dropouts[i]:
                 self.layers.append(torch.nn.Dropout(p=dropouts[i]))
@@ -95,7 +96,8 @@ class SingleBlock(torch.nn.Module):
         x = self.linear(input_tensor)
         if self.batchnorm:
             x = self.batchnorm_layer(x)
-        x = self.activation(x)
+        if self.activation is not None:
+            x = self.activation(x)
         if self.dropout:
             x = self.dropout_layer(x)
         return x
@@ -123,7 +125,7 @@ class FullyConnectedResidualBlock(torch.nn.Module):
             dropouts = [None] * len(activations)
     
         activations = [get_activation(a) for a in activations]
-        self.blocks = []
+        self.blocks = torch.nn.ParameterList()
         
         for i, (act, dropout) in enumerate(zip(activations, dropouts)):
             self.blocks.append(SingleBlock(
@@ -200,7 +202,7 @@ class ConvBlock(torch.nn.Module):
 
         self.output_shape = output_shape
         activations = [get_activation(a) for a in activations]
-        self.layers = []
+        self.layers = torch.nn.ParameterList()
         
         # print(input_shape, filters)
         for i, (nfilt, ksize, padding, act, pool) in enumerate(zip(filters, kernel_sizes, paddings, activations, poolings)):
@@ -211,7 +213,8 @@ class ConvBlock(torch.nn.Module):
                 padding=padding,
             ))
             
-            self.layers.append(act)
+            if act is not None:
+                self.layers.append(act)
     
             if dropouts and dropouts[i]:
                 self.layers.append(torch.nn.Dropout(p=dropouts[i]))
@@ -308,7 +311,8 @@ class FullModel(torch.nn.Module):
             print(custom_objects_code)
             exec(custom_objects_code, globals(), custom_objects)
     
-        self.blocks = [build_block(**descr) for descr in block_descriptions]
+        print(block_descriptions)
+        self.blocks = torch.nn.ParameterList(build_block(**descr) for descr in block_descriptions)
     
     
     def forward(self, inputs) -> Variable:

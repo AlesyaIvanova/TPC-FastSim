@@ -11,7 +11,7 @@ js: True
 stochastic_stepping: True
 
 save_every: 50
-num_epochs: 10
+num_epochs: 5
 
 feature_noise_power: NULL
 feature_noise_decay: NULL
@@ -29,7 +29,7 @@ architecture:
           arguments:
             units: [32, 64, 64, 64, 128]
             activations: [
-                'elu', 'elu', 'elu', 'elu', 'elu',
+                'elu', 'elu', 'elu', 'elu', 'tanh'
             ]
             kernel_init: 'glorot_uniform'
             input_shape: [39,]
@@ -60,7 +60,7 @@ architecture:
         - block_type: 'fully_connected'
           arguments:
             units: [128, 1]
-            activations: ['elu', 'elu']
+            activations: ['elu', 'NULL']
             kernel_init: 'glorot_uniform'
             input_shape: [71,]
             output_shape: NULL

@@ -104,6 +104,9 @@ def train(
         print("Val losses:", losses_val)
 
     np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
+    np.savetxt('train_samples', data_train.reshape((-1, 8 * 16)))
+    fake_samples = model.make_fake(features_train)
+    np.savetxt('fake_samples', fake_samples.detach().numpy().reshape((-1, 8 * 16)))
 
 
 def average(models):
