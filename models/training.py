@@ -52,7 +52,7 @@ def train(
                         feature_batch
                         + np.random.normal(size=feature_batch.shape).astype(feature_batch.dtype) * noise_power
                     )
-
+            
             if features_train is None:
                 losses_train_batch = train_step_fn(batch)
             else:

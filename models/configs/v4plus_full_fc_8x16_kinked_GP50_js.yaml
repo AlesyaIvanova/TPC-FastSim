@@ -10,8 +10,8 @@ cramer: False
 js: True
 stochastic_stepping: True
 
-save_every: 50
-num_epochs: 5
+save_every: 100
+num_epochs: 1
 
 feature_noise_power: NULL
 feature_noise_decay: NULL

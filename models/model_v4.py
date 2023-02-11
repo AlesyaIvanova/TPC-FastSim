@@ -75,7 +75,8 @@ def gen_loss_js(d_real, d_fake):
 
 
 class Model_v4:
-    def __init__(self, config):
+    def __init__(self, device, config):
+        self.device = device
         self._f = preprocess_features
         if config['data_version'] == 'data_v4plus':
             self.full_feature_space = config.get('full_feature_space', False)
@@ -102,10 +103,10 @@ class Model_v4:
 
         self.generator = nn.FullModel(
             architecture_descr['generator'], custom_objects_code=config.get('custom_objects', None)
-        )
+        ).to(device)
         self.discriminator = nn.FullModel(
             architecture_descr['discriminator'], custom_objects_code=config.get('custom_objects', None)
-        )
+        ).to(device)
 
         self.disc_opt = torch.optim.RMSprop(self.discriminator.parameters(), lr=config['lr_disc'])
         self.gen_opt = torch.optim.RMSprop(self.generator.parameters(), lr=config['lr_gen'])
@@ -220,8 +221,8 @@ class Model_v4:
         return {'disc_loss': d_loss, 'gen_loss': g_loss}
 
     def disc_step(self, feature_batch, target_batch):
-        feature_batch = torch.Tensor(feature_batch)
-        target_batch = torch.Tensor(target_batch)
+        feature_batch = torch.Tensor(feature_batch).to(self.device)
+        target_batch = torch.Tensor(target_batch).to(self.device)
 
         for p in self.discriminator.parameters():
                 p.requires_grad = True
@@ -237,8 +238,8 @@ class Model_v4:
         return losses
 
     def gen_step(self, feature_batch, target_batch):
-        feature_batch = torch.Tensor(feature_batch)
-        target_batch = torch.Tensor(target_batch)
+        feature_batch = torch.Tensor(feature_batch).to(self.device)
+        target_batch = torch.Tensor(target_batch).to(self.device)
 
         for p in self.discriminator.parameters():
                 p.requires_grad = False

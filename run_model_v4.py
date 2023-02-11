@@ -91,7 +91,8 @@ def main():
     args.config = config_path
     config = load_config(args.config)
 
-    model = Model_v4(config)
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    model = Model_v4(device, config)
 
     next_epoch = 0
     if args.prediction_only or continue_training:
@@ -179,24 +180,24 @@ def main():
     # #   plt.title('generated')
     # # plt.show()
 
-    pad_range = (-3, 5)
-    time_range = (-7, 9)
-    num_samples = 10
-    # fake = model.make_fake(torch.tensor([[0] * 6 for i in range(num_samples)]).detach())
-    # print(X_test[0:1])
-    fake = model.make_fake(X_train)
-    print(fake.detach().numpy().shape)
-    np.savetxt('fake_samples', fake.detach().numpy())
-    print(Y_train.shape)
-    np.savetxt('train_samples', Y_train.reshape((-1, 8 * 16)))
-    # plt.figure(figsize=(17, 5))
-    # for i in range(num_samples):
-    #   plt.subplot(2, 5, i + 1)
-      # print(fake[i,::1].detach().numpy().reshape((8, 16)))
-      # np.savetxt('sample' + str(i), fake[i,::1].detach().numpy().reshape((8, 16)))
-    #   plt.imshow(fake[i,::1].detach().numpy().reshape((8, 16)))
-    #   plt.title('generated')
-    # plt.show()
+    # pad_range = (-3, 5)
+    # time_range = (-7, 9)
+    # num_samples = 10
+    # # fake = model.make_fake(torch.tensor([[0] * 6 for i in range(num_samples)]).detach())
+    # # print(X_test[0:1])
+    # fake = model.make_fake(X_train)
+    # print(fake.detach().numpy().shape)
+    # np.savetxt('fake_samples', fake.detach().numpy())
+    # print(Y_train.shape)
+    # np.savetxt('train_samples', Y_train.reshape((-1, 8 * 16)))
+    # # plt.figure(figsize=(17, 5))
+    # # for i in range(num_samples):
+    # #   plt.subplot(2, 5, i + 1)
+    #   # print(fake[i,::1].detach().numpy().reshape((8, 16)))
+    #   # np.savetxt('sample' + str(i), fake[i,::1].detach().numpy().reshape((8, 16)))
+    # #   plt.imshow(fake[i,::1].detach().numpy().reshape((8, 16)))
+    # #   plt.title('generated')
+    # # plt.show()
 
 
 if __name__ == '__main__':
