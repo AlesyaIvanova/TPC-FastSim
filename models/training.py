@@ -1,8 +1,40 @@
 # import tensorflow as tf
 import numpy as np
-from tqdm import trange
+# from tqdm import trange
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Dataset, DataLoader
+from tqdm.notebook import tqdm
+
+class FastSimDataset(Dataset):
+    def __init__(self, train=True, data = [], features = None, noise_power = None):
+        super().__init__()
+        self.train = train
+        self.data = data
+        self.features = features
+        self.noise_power = noise_power
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        if self.train:
+          sample = self.data[item]
+          feature = None
+          if self.features is not None:
+              feature = self.features[item]
+              if self.noise_power is not None:
+                  feature = (
+                      feature
+                      + np.random.normal(size=feature.shape).astype(feature.dtype) * self.noise_power
+                  )
+          return sample, feature
+        else:
+          sample = self.data[item]
+          feature = None
+          if self.features is not None:
+              feature = self.features[item]
+          return sample, feature
 
 
 def train(
@@ -30,6 +62,12 @@ def train(
     val_gen_losses = []
     val_disc_losses = []
 
+    train_dataset = FastSimDataset(train=True, data=data_train, features=features_train, noise_power=features_noise)
+    val_dataset = FastSimDataset(train=False, data=data_val, features=features_val)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=2)
+
     for i_epoch in range(first_epoch, num_epochs):
         print("Working on epoch #{}".format(i_epoch), flush=True)
 
@@ -42,17 +80,7 @@ def train(
         if features_noise is not None:
             noise_power = features_noise(i_epoch)
 
-        for i_sample in trange(0, len(data_train), batch_size):
-            batch = data_train[shuffle_ids][i_sample : i_sample + batch_size]
-            # print('w', batch.shape)
-            if features_train is not None:
-                feature_batch = features_train[shuffle_ids][i_sample : i_sample + batch_size]
-                if noise_power is not None:
-                    feature_batch = (
-                        feature_batch
-                        + np.random.normal(size=feature_batch.shape).astype(feature_batch.dtype) * noise_power
-                    )
-            
+        for batch, feature_batch in tqdm(train_loader, desc='Train'):
             if features_train is None:
                 losses_train_batch = train_step_fn(batch)
             else:
@@ -68,13 +96,10 @@ def train(
         # model.eval()
 
         losses_val = {}
-        for i_sample in trange(0, len(data_val), batch_size):
-            batch = data_val[i_sample : i_sample + batch_size]
-
+        for batch, feature_batch in tqdm(val_loader, desc='Val'):
             if features_train is None:
                 losses_val_batch = {k: l.numpy() for k, l in loss_eval_fn(batch).items()}
             else:
-                feature_batch = features_val[i_sample : i_sample + batch_size]
                 losses_val_batch = {k: l.detach().numpy() for k, l in loss_eval_fn(torch.tensor(feature_batch), torch.tensor(batch)).items()}
             for k, l in losses_val_batch.items():
                 losses_val[k] = losses_val.get(k, 0) + l * len(batch)

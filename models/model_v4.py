@@ -32,10 +32,10 @@ def preprocess_features_v4plus(features):
     #   pT [0, 2.5]
 
     # print(features)
-    bin_fractions = torch.tensor(features[:, 2:4] % 1)
-    features_1 = (torch.tensor(features[:, :3]) - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
-    features_2 = torch.tensor((features[:, 4:5] >= 27), dtype=torch.float)
-    features_3 = torch.tensor(features[:, 5:6] / 2.5)
+    bin_fractions = features[:, 2:4] % 1
+    features_1 = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
+    features_2 = (features[:, 4:5] >= 27)
+    features_3 = features[:, 5:6] / 2.5
     return torch.cat((features_1, features_2, features_3, bin_fractions), dim=-1)
 
 
