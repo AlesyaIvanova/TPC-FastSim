@@ -69,7 +69,7 @@ def load_config(file):
 def main():
     args = parse_args()
 
-    cuda_gpu_config.setup_gpu(args.gpu_num)
+    # cuda_gpu_config.setup_gpu(args.gpu_num)
 
     model_path = Path('saved_models') / args.checkpoint_name
 
@@ -150,6 +150,7 @@ def main():
 
         train(
             model,
+            device,
             Y_train,
             Y_test,
             model.training_step,

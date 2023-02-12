@@ -22,7 +22,7 @@ def preprocess_features(features):
     return torch.cat((features, bin_fractions), dim=-1)
 
 
-def preprocess_features_v4plus(features):
+def preprocess_features_v4plus(features, device):
     # features:
     #   crossing_angle [-20, 20]
     #   dip_angle [-60, 60]
@@ -33,7 +33,7 @@ def preprocess_features_v4plus(features):
 
     # print(features)
     bin_fractions = features[:, 2:4] % 1
-    features_1 = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]])) / torch.tensor([[20.0, 60.0, 127.5]])
+    features_1 = (features[:, :3] - torch.tensor([[0.0, 0.0, 162.5]]).to(device)) / torch.tensor([[20.0, 60.0, 127.5]]).to(device)
     features_2 = (features[:, 4:5] >= 27)
     features_3 = features[:, 5:6] / 2.5
     return torch.cat((features_1, features_2, features_3, bin_fractions), dim=-1)
@@ -77,6 +77,7 @@ def gen_loss_js(d_real, d_fake):
 class Model_v4:
     def __init__(self, device, config):
         self.device = device
+        print("Device:", device)
         self._f = preprocess_features
         if config['data_version'] == 'data_v4plus':
             self.full_feature_space = config.get('full_feature_space', False)
@@ -157,20 +158,20 @@ class Model_v4:
     def make_fake(self, features):
         # print('i', type(features))
         size = len(features)
-        latent_input = torch.normal(mean=0, std=1, size=(size, self.latent_dim))
+        latent_input = torch.normal(mean=0, std=1, size=(size, self.latent_dim)).to(self.device)
         # print(features)
         # print(self._f(features))
         # print(torch.cat((self._f(features), latent_input), dim=-1))
         # print(self.generator(torch.cat((self._f(features), latent_input), dim=-1)))
-        return self.generator(torch.cat((self._f(features), latent_input), dim=-1))
+        return self.generator(torch.cat((self._f(features, self.device), latent_input), dim=-1))
 
     def gradient_penalty(self, features, real, fake):
-        alpha = torch.rand(size=[len(real)] + [1] * (len(real.shape) - 1))
+        alpha = torch.rand(size=[len(real)] + [1] * (len(real.shape) - 1)).to(self.device)
         # print('e', real.shape, fake.shape)
         fake = torch.reshape(fake, real.shape)
         interpolates = alpha * real + (1 - alpha) * fake
         
-        inputs = [Variable(self._f(features), requires_grad=True), Variable(interpolates, requires_grad=True)]
+        inputs = [Variable(self._f(features, self.device), requires_grad=True), Variable(interpolates, requires_grad=True)]
         d_int = self.discriminator(inputs)
         # print(type(d_int), type(inputs[0]))
         # print('k', d_int.shape)
@@ -179,9 +180,9 @@ class Model_v4:
         # grads = torch.gradient(d_int)
         grads = autograd.grad(outputs=d_int, inputs=inputs,
                                grad_outputs=torch.ones(
-                                   d_int.size()),
+                                   d_int.size()).to(self.device),
                                create_graph=True, retain_graph=True)[0]
-        return torch.mean(torch.maximum(torch.norm(grads, dim=-1) - 1, torch.Tensor([0])) ** 2) 
+        return torch.mean(torch.maximum(torch.norm(grads, dim=-1) - 1, torch.Tensor([0]).to(self.device)) ** 2) 
 
     def gradient_penalty_on_data(self, features, real):
         d_real = self.discriminator([self._f(features), real])
@@ -191,12 +192,14 @@ class Model_v4:
 
 
     def calculate_losses(self, feature_batch, target_batch):
+        feature_batch = feature_batch.to(self.device)
+        target_batch = target_batch.to(self.device)
         fake = self.make_fake(feature_batch)
-        d_real = self.discriminator([self._f(feature_batch), target_batch])
-        d_fake = self.discriminator([self._f(feature_batch), fake])
+        d_real = self.discriminator([self._f(feature_batch, self.device), target_batch])
+        d_fake = self.discriminator([self._f(feature_batch, self.device), fake])
         if self.cramer:
             fake_2 = self.make_fake(feature_batch)
-            d_fake_2 = self.discriminator([self._f(feature_batch), fake_2])
+            d_fake_2 = self.discriminator([self._f(feature_batch, self.device), fake_2])
 
         if not self.cramer:
             if self.js:

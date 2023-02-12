@@ -39,6 +39,7 @@ class FastSimDataset(Dataset):
 
 def train(
     model,
+    device,
     data_train,
     data_val,
     train_step_fn,
@@ -98,9 +99,9 @@ def train(
         losses_val = {}
         for batch, feature_batch in tqdm(val_loader, desc='Val'):
             if features_train is None:
-                losses_val_batch = {k: l.numpy() for k, l in loss_eval_fn(batch).items()}
+                losses_val_batch = {k: l.cpu().detach().numpy() for k, l in loss_eval_fn(batch).items()}
             else:
-                losses_val_batch = {k: l.detach().numpy() for k, l in loss_eval_fn(torch.tensor(feature_batch), torch.tensor(batch)).items()}
+                losses_val_batch = {k: l.cpu().detach().numpy() for k, l in loss_eval_fn(feature_batch, batch).items()}
             for k, l in losses_val_batch.items():
                 losses_val[k] = losses_val.get(k, 0) + l * len(batch)
         losses_val = {k: l / len(data_val) for k, l in losses_val.items()}
@@ -128,10 +129,16 @@ def train(
         print("Train losses:", losses_train)
         print("Val losses:", losses_val)
 
+        if i_epoch % 50 == 0:
+            np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
+            np.savetxt('train_samples', data_train.reshape((-1, 8 * 16)))
+            fake_samples = model.make_fake(torch.tensor(features_train).to(device))
+            np.savetxt('fake_samples', fake_samples.cpu().detach().numpy().reshape((-1, 8 * 16)))
+
     np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
     np.savetxt('train_samples', data_train.reshape((-1, 8 * 16)))
-    fake_samples = model.make_fake(features_train)
-    np.savetxt('fake_samples', fake_samples.detach().numpy().reshape((-1, 8 * 16)))
+    fake_samples = model.make_fake(torch.tensor(features_train).to(device))
+    np.savetxt('fake_samples', fake_samples.cpu().detach().numpy().reshape((-1, 8 * 16)))
 
 
 def average(models):
