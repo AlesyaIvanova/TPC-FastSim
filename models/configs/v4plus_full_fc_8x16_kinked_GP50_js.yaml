@@ -11,7 +11,7 @@ js: True
 stochastic_stepping: True
 
 save_every: 100
-num_epochs: 10
+num_epochs: 1000
 
 feature_noise_power: NULL
 feature_noise_decay: NULL
@@ -29,7 +29,21 @@ architecture:
           arguments:
             units: [32, 64, 64, 64, 128]
             activations: [
-                'elu', 'elu', 'elu', 'elu', 'tanh'
+                'elu', 'elu', 'elu', 'elu', 
+                "(
+                    lambda x,
+                           shift=0.01,
+                           val=np.log10(2),
+                           v0=np.log10(2) / 10: (
+                        torch.where(
+                            x > shift,
+                            val + x - shift,
+                            v0 + torch.nn.ELU(
+                                alpha=(v0 * shift / (val - v0))
+                            )(x) * (val - v0) / shift
+                        )
+                    )
+                )"
             ]
             kernel_init: 'glorot_uniform'
             input_shape: [39,]

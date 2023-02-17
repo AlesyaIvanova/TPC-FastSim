@@ -5,6 +5,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 from tqdm.notebook import tqdm
+from metrics.trends import calc_trend
 
 class FastSimDataset(Dataset):
     def __init__(self, train=True, data = [], features = None, noise_power = None):
@@ -37,6 +38,30 @@ class FastSimDataset(Dataset):
           return sample, feature
 
 
+def calc_chi2(real, feature_real, gen, feature_gen):
+    bins = np.linspace(min(feature_real.min(), feature_gen.min()), max(feature_real.max(), feature_gen.max()), 20)
+    ((real_mean, real_std), (real_mean_err, real_std_err)) = calc_trend(
+        feature_real, real, do_plot=False, bins=bins, window_size=1
+    )
+    ((gen_mean, gen_std), (gen_mean_err, gen_std_err)) = calc_trend(
+        feature_gen, gen, do_plot=False, bins=bins, window_size=1
+    )
+
+    gen_upper = gen_mean + gen_std
+    gen_lower = gen_mean - gen_std
+    gen_err2 = gen_mean_err**2 + gen_std_err**2
+
+    real_upper = real_mean + real_std
+    real_lower = real_mean - real_std
+    real_err2 = real_mean_err**2 + real_std_err**2
+
+    chi2 = ((gen_upper - real_upper) ** 2 / (gen_err2 + real_err2)).sum() + (
+        (gen_lower - real_lower) ** 2 / (gen_err2 + real_err2)
+    ).sum()
+
+    return chi2
+
+
 def train(
     model,
     device,
@@ -62,6 +87,8 @@ def train(
     train_disc_losses = []
     val_gen_losses = []
     val_disc_losses = []
+    train_chi2 = []
+    val_chi2 = []
 
     train_dataset = FastSimDataset(train=True, data=data_train, features=features_train, noise_power=features_noise)
     val_dataset = FastSimDataset(train=False, data=data_val, features=features_val)
@@ -125,17 +152,28 @@ def train(
                     writer.add_scalar(k, l, i_epoch)
                     writer.close()
 
+        
+        # fake_samples = model.make_fake(torch.tensor(features_val).to(device))
+        # chi2 = calc_chi2(data_val, features_val, fake_samples, features_val)
+        # val_chi2.append(chi2)
+        fake_samples = model.make_fake(torch.tensor(features_train).to(device))
+        # chi2 = calc_chi2(data_train, features_train, fake_samples, features_train)
+        # train_chi2.append(chi2)
+
         print("", flush=True)
         print("Train losses:", losses_train)
         print("Val losses:", losses_val)
+        # print("Train chi2:", train_chi2[-1])
+        # print("Val chi2:", val_chi2[-1])
 
         if i_epoch % 50 == 0:
             np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
+            np.savetxt('chi2', np.array([train_chi2, val_chi2]))
             np.savetxt('train_samples', data_train.reshape((-1, 8 * 16)))
-            fake_samples = model.make_fake(torch.tensor(features_train).to(device))
             np.savetxt('fake_samples', fake_samples.cpu().detach().numpy().reshape((-1, 8 * 16)))
 
     np.savetxt('losses', np.array([train_gen_losses, train_disc_losses, val_gen_losses, val_disc_losses]))
+    np.savetxt('chi2', np.array([train_chi2, val_chi2]))
     np.savetxt('train_samples', data_train.reshape((-1, 8 * 16)))
     fake_samples = model.make_fake(torch.tensor(features_train).to(device))
     np.savetxt('fake_samples', fake_samples.cpu().detach().numpy().reshape((-1, 8 * 16)))

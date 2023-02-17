@@ -18,8 +18,8 @@ activations = {
 def get_activation(activation_name):
     try:
         activation = activations[activation_name]
-    except ValueError:
-        activation = eval(activation)
+    except KeyError:
+        activation = eval(activation_name)
     return activation
 
 
@@ -259,6 +259,7 @@ class VectorImgConnectBlock(torch.nn.Module):
     
     def forward(self, input_tensors) -> Variable:
         input_vec, input_img = input_tensors[0], input_tensors[1]
+        # print(input_vec.shape, input_img.shape)
         block_input = input_img
         if len(self.img_shape) == 2:
             block_input = torch.reshape(block_input, (-1, *(self.img_shape + (1,))))
